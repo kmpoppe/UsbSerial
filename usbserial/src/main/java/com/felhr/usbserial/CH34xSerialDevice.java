@@ -72,12 +72,30 @@ public class CH34xSerialDevice extends UsbSerialDevice
     private static final int CH34X_2000000_1312 = 0xfd03;
     private static final int CH34X_2000000_0f2c = 0x02;
 
+    /* Databit Values
+    private static final int LCR_ENABLE_RX   = 0x80;
+    private static final int LCR_ENABLE_TX   = 0x40;
+    private static final int LCR_CS8         = 0x03;
+    private static final int LCR_CS7         = 0x02;
+    private static final int LCR_CS6         = 0x01;
+    private static final int LCR_CS5         = 0x00;
+     */
+
     // Parity values
-    private static final int CH34X_PARITY_NONE = 0xc3;
-    private static final int CH34X_PARITY_ODD = 0xcb;
-    private static final int CH34X_PARITY_EVEN = 0xdb;
-    private static final int CH34X_PARITY_MARK = 0xeb;
-    private static final int CH34X_PARITY_SPACE = 0xfb;
+    private static final int CH34X_PARITY_NONE = 0xc3;  //8Bit
+    private static final int CH34X_PARITY_ODD = 0xcb;   //8Bit
+    private static final int CH34X_PARITY_EVEN = 0xdb;  //8Bit
+    private static final int CH34X_PARITY_MARK = 0xeb;  //8Bit
+    private static final int CH34X_PARITY_SPACE = 0xfb; //8Bit
+    // Parity values 7-Bit
+    private static final int CH34X_PARITY_NONE_7BIT = 0xc2;
+    private static final int CH34X_PARITY_ODD_7BIT = 0xca;
+    private static final int CH34X_PARITY_EVEN_7BIT = 0xda;
+    private static final int CH34X_PARITY_MARK_7BIT = 0xea;
+    private static final int CH34X_PARITY_SPACE_7BIT = 0xfa;
+
+    //Mask for Data-Bist < 8
+    private int Data_Bits_Maske = 0xff;
 
     //Flow control values
     private static final int CH34X_FLOW_CONTROL_NONE = 0x0000;
@@ -273,7 +291,23 @@ public class CH34xSerialDevice extends UsbSerialDevice
     public void setDataBits(int dataBits)
     {
         // TODO Auto-generated method stub
-
+        switch(dataBits)
+        {
+            case UsbSerialInterface.DATA_BITS_5:
+                Data_Bits_Maske = 0xFC;
+                break;
+            case UsbSerialInterface.DATA_BITS_6:
+                Data_Bits_Maske = 0xFD;
+                break;
+            case UsbSerialInterface.DATA_BITS_7:
+                Data_Bits_Maske = 0xFE;
+                break;
+            case UsbSerialInterface.DATA_BITS_8:
+                Data_Bits_Maske = 0xFF;
+                break;
+            default:
+                break;
+        }
     }
 
     @Override
@@ -295,19 +329,24 @@ public class CH34xSerialDevice extends UsbSerialDevice
         switch(parity)
         {
             case UsbSerialInterface.PARITY_NONE:
-                setCh340xParity(CH34X_PARITY_NONE);
+                //setCh340xParity(CH34X_PARITY_NONE & Data_Bits_Maske);
+                setCh340xParity(CH34X_PARITY_NONE_7BIT);
                 break;
             case UsbSerialInterface.PARITY_ODD:
-                setCh340xParity(CH34X_PARITY_ODD);
+                //setCh340xParity(CH34X_PARITY_ODD & Data_Bits_Maske);
+                setCh340xParity(CH34X_PARITY_ODD_7BIT);
                 break;
             case UsbSerialInterface.PARITY_EVEN:
-                setCh340xParity(CH34X_PARITY_EVEN);
+                //setCh340xParity(CH34X_PARITY_EVEN & Data_Bits_Maske);
+                setCh340xParity(CH34X_PARITY_EVEN_7BIT);
                 break;
             case UsbSerialInterface.PARITY_MARK:
-                setCh340xParity(CH34X_PARITY_MARK);
+                //setCh340xParity(CH34X_PARITY_MARK & Data_Bits_Maske);
+                setCh340xParity(CH34X_PARITY_MARK_7BIT);
                 break;
             case UsbSerialInterface.PARITY_SPACE:
-                setCh340xParity(CH34X_PARITY_SPACE);
+                //setCh340xParity(CH34X_PARITY_SPACE & Data_Bits_Maske);
+                setCh340xParity(CH34X_PARITY_SPACE_7BIT);
                 break;
             default:
                 break;
@@ -544,14 +583,8 @@ public class CH34xSerialDevice extends UsbSerialDevice
             Log.i(CLASS_ID, ("Expected " + "2" + " bytes, but get " + ret));
             return false;
         }
-
-        if((buffer[0] & 0x01) == 0x00) //CTS ON
-        {
-            return true;
-        }else // CTS OFF
-        {
-            return false;
-        }
+        // Simplified return value
+        return (buffer[0] & 0x01) == 0x00;
     }
 
     private boolean checkDSR()
@@ -564,14 +597,8 @@ public class CH34xSerialDevice extends UsbSerialDevice
             Log.i(CLASS_ID, ("Expected " + "2" + " bytes, but get " + ret));
             return false;
         }
-
-        if((buffer[0] & 0x02) == 0x00) //DSR ON
-        {
-            return true;
-        }else // DSR OFF
-        {
-            return false;
-        }
+        // Simplified return value
+        return (buffer[0] & 0x02) == 0x00;
     }
 
     private int writeHandshakeByte()
@@ -592,7 +619,7 @@ public class CH34xSerialDevice extends UsbSerialDevice
             dataLength = data.length;
         }
         int response = connection.controlTransfer(REQTYPE_HOST_TO_DEVICE, request, value, index, data, dataLength, USB_TIMEOUT);
-        Log.i(CLASS_ID,"Control Transfer Response: " + String.valueOf(response));
+        Log.i(CLASS_ID,"Control Transfer Response: " + String.valueOf(response) + " DataLength: " + String.valueOf(DataLength));
         return response;
     }
 
@@ -604,7 +631,7 @@ public class CH34xSerialDevice extends UsbSerialDevice
             dataLength = data.length;
         }
         int response = connection.controlTransfer(REQTYPE_HOST_FROM_DEVICE, request, value, index, data, dataLength, USB_TIMEOUT);
-        Log.i(CLASS_ID,"Control Transfer Response: " + String.valueOf(response));
+        Log.i(CLASS_ID,"Control Transfer Response: " + String.valueOf(response) + " DataLength: " + String.valueOf(DataLength));
         return response;
     }
 
